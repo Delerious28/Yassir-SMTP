@@ -1,11 +1,10 @@
-import { Worker, QueueScheduler } from 'bullmq';
+import { Worker } from 'bullmq';
 import { IMAP_QUEUE, JOB_NAMES, decryptSecret } from '@yassir/shared';
 import { PrismaClient } from '@prisma/client';
 import { ImapFlow } from 'imapflow';
 
 const connection = { url: process.env.REDIS_URL || 'redis://localhost:6379' };
 const prisma = new PrismaClient();
-new QueueScheduler(IMAP_QUEUE, { connection });
 
 export function startImapWorker() {
   new Worker(

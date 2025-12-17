@@ -1,13 +1,11 @@
-import { Queue, Worker, QueueScheduler } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { PLANNER_QUEUE, JOB_NAMES, SEND_QUEUE } from '@yassir/shared';
-import { PrismaClient, ConsentStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { enqueueSendJob, computeSchedule } from './send-worker.js';
 
 const connection = { url: process.env.REDIS_URL || 'redis://localhost:6379' };
 const prisma = new PrismaClient();
 const plannerQueue = new Queue(PLANNER_QUEUE, { connection });
-new QueueScheduler(PLANNER_QUEUE, { connection });
-new QueueScheduler(SEND_QUEUE, { connection });
 
 export function startPlanner() {
   new Worker(
@@ -22,7 +20,7 @@ export function startPlanner() {
       if (!campaign || !campaign.active) return;
       for (const leadLink of campaign.leads) {
         const lead = await prisma.lead.findUnique({ where: { id: leadLink.leadId } });
-        if (!lead || lead.consentStatus !== ConsentStatus.opt_in) continue;
+        if (!lead || lead.consentStatus !== 'opt_in') continue;
         const stepNumber = leadLink.stepNumber || 1;
         const step = campaign.steps.find((s) => s.stepNumber === stepNumber);
         if (!step) continue;
