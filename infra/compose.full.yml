@@ -1,3 +1,4 @@
+version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,45 +11,41 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
       - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  app:
-    build:
-      context: ../
-      dockerfile: Dockerfile
-    restart: unless-stopped
+  api:
+    build: ../
+    command: npm run dev --workspace=apps/api
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/yassir_smtp
       REDIS_URL: redis://redis:6379
-      MASTER_KEY: base64-32-bytesAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+      MASTER_KEY: changeme-base64
       JWT_SECRET: devsecret
-      APP_BASE_URL: http://localhost:3000
-      NODE_ENV: development
+    depends_on:
+      - postgres
+      - redis
+  worker:
+    build: ../
+    command: npm run dev --workspace=apps/worker
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/yassir_smtp
+      REDIS_URL: redis://redis:6379
+      MASTER_KEY: changeme-base64
+      JWT_SECRET: devsecret
+    depends_on:
+      - postgres
+      - redis
+  web:
+    build: ../
+    command: npm run dev --workspace=apps/web
+    environment:
+      NEXT_PUBLIC_API_BASE: http://api:3001
     ports:
       - "3000:3000"
-      - "3001:3001"
-      - "3002:3002"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-
+      - api
 volumes:
   pgdata:

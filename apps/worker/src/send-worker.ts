@@ -1,11 +1,12 @@
-import { Queue, Worker, JobsOptions } from 'bullmq';
+import { Queue, Worker, QueueScheduler, JobsOptions } from 'bullmq';
 import { SEND_QUEUE, JOB_NAMES, computeJitterDelay, decryptSecret } from '@yassir/shared';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ConsentStatus } from '@prisma/client';
 import nodemailer from 'nodemailer';
 
 const connection = { url: process.env.REDIS_URL || 'redis://localhost:6379' };
 const prisma = new PrismaClient();
 const queue = new Queue(SEND_QUEUE, { connection });
+new QueueScheduler(SEND_QUEUE, { connection });
 
 export function startSendWorker() {
   new Worker(
@@ -23,7 +24,7 @@ export function startSendWorker() {
         await prisma.sendJob.update({ where: { id: sendJob.id }, data: { status: 'cancelled', lastError: 'inactive' } });
         return;
       }
-      if (lead.consentStatus !== 'opt_in') {
+      if (lead.consentStatus !== ConsentStatus.opt_in) {
         await prisma.sendJob.update({ where: { id: sendJob.id }, data: { status: 'cancelled', lastError: 'consent_required' } });
         return;
       }

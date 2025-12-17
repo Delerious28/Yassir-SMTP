@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "npm@10.7.0",
   "workspaces": [
     "apps/api",
     "apps/web",
@@ -22,7 +22,6 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@swc/core": "^1.15.5",
     "@types/node": "20.11.30",
     "concurrently": "8.2.2",
     "cross-env": "7.0.3",
@@ -36,7 +35,6 @@
     "vitest": "1.6.0"
   },
   "dependencies": {
-    "@prisma/client": "5.15.0",
     "bcryptjs": "2.4.3",
     "dotenv": "16.4.5",
     "prisma": "5.15.0"
