@@ -1,0 +1,42 @@
+{
+  "name": "yassir-smtp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "npm@10.7.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "apps/worker",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development concurrently -c green,cyan,magenta \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/web\" \"npm run dev --workspace=apps/worker\"",
+    "deps:up": "docker compose -f infra/compose.deps.yml up -d",
+    "deps:down": "docker compose -f infra/compose.deps.yml down",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "db:seed": "ts-node --swc prisma/seed.ts",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@types/node": "20.11.30",
+    "concurrently": "8.2.2",
+    "cross-env": "7.0.3",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.4",
+    "prettier": "3.2.5",
+    "rimraf": "5.0.5",
+    "ts-node": "10.9.2",
+    "tsx": "4.7.1",
+    "typescript": "5.4.5",
+    "vitest": "1.6.0"
+  },
+  "dependencies": {
+    "bcryptjs": "2.4.3",
+    "dotenv": "16.4.5",
+    "prisma": "5.15.0"
+  }
+}
