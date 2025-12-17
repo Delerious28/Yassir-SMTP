@@ -1,0 +1,202 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailAccount {
+  id                String   @id @default(cuid())
+  name              String
+  smtpHost          String
+  smtpPort          Int
+  smtpUser          String
+  smtpPassword      String
+  smtpSecure        Boolean  @default(true)
+  imapHost          String
+  imapPort          Int
+  imapUser          String
+  imapPassword      String
+  imapSecure        Boolean  @default(true)
+  dailySendLimit    Int      @default(50)
+  minTimeGapMinutes Int      @default(7)
+  jitterMinutes     Int      @default(5)
+  enabled           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  campaigns         CampaignEmailAccount[]
+  messages          Message[]
+}
+
+model Lead {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  firstName        String?
+  lastName         String?
+  company          String?
+  tags             String[]
+  consentStatus    ConsentStatus @default(unknown)
+  consentSource    String?
+  consentTimestamp DateTime?
+  providerMatch    ProviderMatch @default(other)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  campaignState    CampaignLead[]
+  outboundMessages Message[] @relation("LeadOutbound")
+  inboundMessages  Message[] @relation("LeadInbound")
+}
+
+enum ConsentStatus {
+  unknown
+  opt_in
+  unsubscribed
+  bounced
+  complaint
+  replied
+}
+
+enum ProviderMatch {
+  google
+  microsoft
+  zoho
+  other
+}
+
+model Campaign {
+  id                 String   @id @default(cuid())
+  name               String
+  description        String?
+  campaignDailyLimit Int      @default(200)
+  active             Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  accounts           CampaignEmailAccount[]
+  steps              SequenceStep[]
+  leads              CampaignLead[]
+  sendJobs           SendJob[]
+}
+
+model CampaignEmailAccount {
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  campaignId String
+  account    EmailAccount @relation(fields: [accountId], references: [id])
+  accountId  String
+  weight     Int      @default(1)
+
+  @@id([campaignId, accountId])
+}
+
+model CampaignLead {
+  id          String    @id @default(cuid())
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  campaignId  String
+  lead        Lead      @relation(fields: [leadId], references: [id])
+  leadId      String
+  stepNumber  Int       @default(1)
+  state       LeadState @default(pending)
+  lastSentAt  DateTime?
+  nextSendAt  DateTime?
+
+  @@unique([campaignId, leadId])
+}
+
+enum LeadState {
+  pending
+  queued
+  sent
+  replied
+  bounced
+  unsubscribed
+  stopped
+}
+
+model SequenceStep {
+  id                String   @id @default(cuid())
+  campaign          Campaign @relation(fields: [campaignId], references: [id])
+  campaignId        String
+  stepNumber        Int
+  subjectTemplate   String
+  bodyTemplate      String
+  waitDaysAfterPrev Int
+  stopOnReply       Boolean @default(true)
+
+  @@unique([campaignId, stepNumber])
+}
+
+model SendJob {
+  id           String   @id @default(cuid())
+  campaign     Campaign @relation(fields: [campaignId], references: [id])
+  campaignId   String
+  lead         Lead     @relation(fields: [leadId], references: [id])
+  leadId       String
+  account      EmailAccount @relation(fields: [accountId], references: [id])
+  accountId    String
+  stepNumber   Int
+  scheduledAt  DateTime
+  status       JobStatus @default(queued)
+  attempts     Int       @default(0)
+  lastError    String?
+  messageId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum JobStatus {
+  queued
+  sending
+  sent
+  failed
+  cancelled
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  direction   MessageDirection
+  campaignId  String?
+  outboundLeadId String?
+  inboundLeadId  String?
+  lead        Lead?    @relation("LeadOutbound", fields: [outboundLeadId], references: [id])
+  inboundLead Lead?    @relation("LeadInbound", fields: [inboundLeadId], references: [id])
+  accountId   String?
+  account     EmailAccount? @relation(fields: [accountId], references: [id])
+  subject     String
+  body        String
+  messageId   String?
+  inReplyTo   String?
+  rawHeaders  Json?
+  rawBody     String?
+  sentAt      DateTime?
+  receivedAt  DateTime?
+  createdAt   DateTime @default(now())
+}
+
+enum MessageDirection {
+  outbound
+  inbound
+}
+
+model SuppressionEntry {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    ConsentStatus
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  details   Json
+  createdAt DateTime @default(now())
+}
