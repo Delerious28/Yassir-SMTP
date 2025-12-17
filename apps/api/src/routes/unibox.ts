@@ -12,7 +12,8 @@ export const uniboxRoutes: FastifyPluginAsync = async (app) => {
   app.get('/threads', async () => {
     const messages = await app.prisma.message.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 50
+      take: 50,
+      include: { lead: true, inboundLead: true }
     });
     return messages;
   });
@@ -20,8 +21,11 @@ export const uniboxRoutes: FastifyPluginAsync = async (app) => {
   app.get('/messages', async (request) => {
     const { leadId } = request.query as { leadId?: string };
     return app.prisma.message.findMany({
-      where: leadId ? { leadId } : undefined,
-      orderBy: { createdAt: 'desc' }
+      where: leadId
+        ? { OR: [{ outboundLeadId: leadId }, { inboundLeadId: leadId }] }
+        : undefined,
+      orderBy: { createdAt: 'desc' },
+      include: { lead: true, inboundLead: true }
     });
   });
 };

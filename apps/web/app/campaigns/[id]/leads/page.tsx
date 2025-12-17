@@ -1,39 +1,93 @@
-export default function CampaignLeadsPage({ params }: { params: { id: string } }) {
+'use client';
+
+import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { apiFetch } from '../../../../lib/api';
+
+type Lead = { id: string; email: string; consentStatus: string };
+
+type CampaignLead = { id: string; lead: Lead; state: string };
+
+export default function CampaignLeadsPage() {
+  const params = useParams<{ id: string }>();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [attached, setAttached] = useState<CampaignLead[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      const [allLeads, campaign] = await Promise.all([
+        apiFetch<Lead[]>('/api/leads'),
+        apiFetch<{ leads: CampaignLead[] }>(`/api/campaigns/${params.id}` as any)
+      ]);
+      setLeads(allLeads);
+      setAttached(campaign.leads || []);
+    } catch (err: any) {
+      setMessage(err.message);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const attach = async () => {
+    try {
+      await apiFetch(`/api/campaigns/${params.id}/leads`, {
+        method: 'POST',
+        body: JSON.stringify({ leadIds: selected })
+      });
+      setSelected([]);
+      load();
+    } catch (err: any) {
+      setMessage(err.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="glass-panel border border-white/5 p-6 shadow-brand-strong">
-        <p className="text-xs uppercase tracking-[0.25em] text-cyan-200">Campaign leads</p>
-        <h1 className="text-2xl font-semibold text-white">{decodeURIComponent(params.id)}</h1>
-        <p className="text-sm text-slate-300">Dedupe by email, require opt-in, and stop sequences on reply/bounce/unsubscribe.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Campaign leads</p>
+            <h1 className="text-2xl font-semibold text-white">Attach opt-ins</h1>
+          </div>
+          <span className="pill">Dedupe enforced</span>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {leads.map((lead) => (
+            <label key={lead.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <input
+                type="checkbox"
+                checked={selected.includes(lead.id)}
+                onChange={() => toggleSelect(lead.id)}
+                disabled={lead.consentStatus !== 'opt_in'}
+              />
+              <div>
+                <p className="text-sm text-white">{lead.email}</p>
+                <p className="text-xs text-slate-400">Consent: {lead.consentStatus}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+        <button className="btn mt-3" type="button" onClick={attach} disabled={!selected.length}>
+          Attach selected
+        </button>
+        {message && <p className="mt-2 text-sm text-rose-300">{message}</p>}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 glass-panel border border-white/5 p-5 shadow-glow space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-cyan-200">Attached leads</p>
-              <h2 className="text-xl font-semibold text-white">Per-lead safeguards</h2>
-            </div>
-            <span className="pill">No BCC</span>
+      <div className="grid gap-3 md:grid-cols-2">
+        {attached.map((link) => (
+          <div key={link.id} className="rounded-2xl border border-white/5 bg-white/5 p-4">
+            <p className="text-sm text-white">{link.lead.email}</p>
+            <p className="text-xs text-slate-400">State: {link.state}</p>
           </div>
-          <div className="rounded-xl border border-white/5 bg-white/5 p-4 text-sm text-slate-300">
-            lead@example.com • opt_in • stops on reply
-          </div>
-          <div className="rounded-xl border border-white/5 bg-white/5 p-4 text-sm text-slate-300">
-            partner@example.com • replied • future steps cancelled
-          </div>
-        </div>
-        <div className="glass-panel border border-white/5 p-5 space-y-3">
-          <p className="text-sm text-slate-200">Add new lead</p>
-          <input
-            placeholder="email@company.com"
-            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-300/60 focus:outline-none"
-          />
-          <button className="w-full rounded-lg border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:scale-105">
-            Attach to campaign
-          </button>
-          <p className="text-xs text-slate-400">Suppression entries automatically excluded.</p>
-        </div>
+        ))}
       </div>
     </div>
   );

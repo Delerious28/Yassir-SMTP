@@ -1,79 +1,128 @@
+'use client';
+
+import { FormEvent, useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/api';
+
+type Lead = {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  tags: string[];
+  consentStatus: string;
+  providerMatch: string;
+};
+
 export default function LeadsPage() {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [importText, setImportText] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+
+  const load = () =>
+    apiFetch<Lead[]>('/api/leads')
+      .then(setLeads)
+      .catch((err) => setMessage(err.message));
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleCreate = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setMessage(null);
+    const form = new FormData(e.currentTarget);
+    try {
+      await apiFetch('/api/leads', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: form.get('email'),
+          firstName: form.get('firstName') || undefined,
+          lastName: form.get('lastName') || undefined,
+          company: form.get('company') || undefined,
+          consentStatus: form.get('consentStatus') || 'unknown',
+          tags: (form.get('tags') as string)?.split(',').filter(Boolean) || []
+        })
+      });
+      e.currentTarget.reset();
+      load();
+    } catch (err: any) {
+      setMessage(err.message);
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      await apiFetch('/api/leads/import/paste', {
+        method: 'POST',
+        body: JSON.stringify({ leads: [importText] })
+      });
+      setImportText('');
+      load();
+      setMessage('Imported leads');
+    } catch (err: any) {
+      setMessage(err.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="glass-panel border border-white/5 p-6 shadow-brand-strong">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="glass-panel p-6 border border-white/5 shadow-brand-strong">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-cyan-200">Lead intelligence</p>
-            <h1 className="text-2xl font-semibold text-white">Consent-first lists</h1>
-            <p className="text-sm text-slate-300">Unknown consent is blocked automatically; bounces and complaints stay suppressed.</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Leads</p>
+            <h1 className="text-2xl font-semibold text-white">Consent-aware contacts</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:border-cyan-300/40">
-              Paste emails
-            </button>
-            <button className="rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-white shadow-glow hover:scale-105">
-              Upload CSV
-            </button>
-          </div>
+          <span className="pill">No consent = no send</span>
         </div>
+
+        <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={handleCreate}>
+          <input className="input" name="email" placeholder="Email" required />
+          <input className="input" name="firstName" placeholder="First name" />
+          <input className="input" name="lastName" placeholder="Last name" />
+          <input className="input" name="company" placeholder="Company" />
+          <select className="input" name="consentStatus" defaultValue="unknown">
+            <option value="unknown">Unknown</option>
+            <option value="opt_in">Opt-in</option>
+            <option value="unsubscribed">Unsubscribed</option>
+            <option value="bounced">Bounced</option>
+            <option value="complaint">Complaint</option>
+            <option value="replied">Replied</option>
+          </select>
+          <input className="input" name="tags" placeholder="tags (comma separated)" />
+          <button className="btn md:col-span-2" type="submit">
+            Save lead
+          </button>
+        </form>
+        <div className="mt-4 space-y-2">
+          <label className="text-sm text-slate-300">Import (paste emails)</label>
+          <textarea
+            className="input min-h-[120px]"
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            placeholder="email1@example.com\nemail2@example.com"
+          />
+          <button className="btn" type="button" onClick={handleImport}>
+            Import
+          </button>
+        </div>
+        {message && <p className="mt-2 text-sm text-emerald-200">{message}</p>}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 glass-panel border border-white/5 p-5 shadow-glow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-cyan-200">Recent imports</p>
-              <h2 className="text-xl font-semibold text-white">Lead rollups</h2>
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {leads.map((lead) => (
+          <div key={lead.id} className="rounded-2xl border border-white/5 bg-white/5 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-white">{lead.email}</p>
+              <span className="pill">{lead.consentStatus}</span>
             </div>
-            <span className="pill">MX heuristics</span>
+            <p className="text-xs text-slate-400">{lead.firstName} {lead.lastName}</p>
+            <p className="text-xs text-slate-400">{lead.company}</p>
+            <p className="text-xs text-slate-400">Provider: {lead.providerMatch}</p>
+            {lead.tags?.length ? <p className="text-xs text-cyan-200">Tags: {lead.tags.join(', ')}</p> : null}
           </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-white/5 text-slate-300 uppercase text-xs tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Email</th>
-                  <th className="px-4 py-3">Consent</th>
-                  <th className="px-4 py-3">Provider</th>
-                  <th className="px-4 py-3">Tags</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {[1, 2, 3, 4].map((row) => (
-                  <tr key={row} className="hover:bg-white/5">
-                    <td className="px-4 py-3 text-white">lead{row}@example.com</td>
-                    <td className="px-4 py-3 text-emerald-200">opt_in</td>
-                    <td className="px-4 py-3 text-slate-200">google</td>
-                    <td className="px-4 py-3 text-slate-300">welcome, product</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="glass-panel border border-white/5 p-5 space-y-4">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-cyan-200">Filters</p>
-            <h3 className="text-lg font-semibold text-white">Consent + tags</h3>
-          </div>
-          <div className="space-y-3 text-sm text-slate-300">
-            <label className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2">
-              <span>Only opt-in</span>
-              <input type="checkbox" defaultChecked className="accent-cyan-400" />
-            </label>
-            <label className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2">
-              <span>Exclude unsubscribed</span>
-              <input type="checkbox" defaultChecked className="accent-cyan-400" />
-            </label>
-            <label className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2">
-              <span>Exclude bounced/complaints</span>
-              <input type="checkbox" defaultChecked className="accent-cyan-400" />
-            </label>
-          </div>
-          <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100 shadow-glow">
-            Suppression is enforced globally—no message is sent without opt-in status.
-          </div>
-        </div>
+        ))}
+        {!leads.length && <p className="text-slate-400">No leads yet.</p>}
       </div>
     </div>
   );

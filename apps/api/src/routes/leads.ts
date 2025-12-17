@@ -6,6 +6,10 @@ const importSchema = z.object({
   leads: z.array(z.string()).min(1)
 });
 
+const unsubscribeSchema = z.object({
+  email: z.string().email()
+});
+
 export const leadRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', async (req, reply) => {
     try {
@@ -52,5 +56,27 @@ export const leadRoutes: FastifyPluginAsync = async (app) => {
     const { id } = request.params as { id: string };
     await app.prisma.lead.delete({ where: { id } });
     return { deleted: true };
+  });
+
+  app.post('/unsubscribe', async (request, reply) => {
+    const { email } = unsubscribeSchema.parse(request.body);
+    const normalized = normalizeEmail(email);
+    await app.prisma.lead.upsert({
+      where: { email: normalized },
+      update: { consentStatus: 'unsubscribed', consentSource: 'unsubscribe_link', consentTimestamp: new Date() },
+      create: {
+        email: normalized,
+        consentStatus: 'unsubscribed',
+        consentSource: 'unsubscribe_link',
+        consentTimestamp: new Date(),
+        tags: []
+      }
+    });
+    await app.prisma.suppressionEntry.upsert({
+      where: { email: normalized },
+      update: { reason: 'unsubscribed' },
+      create: { email: normalized, reason: 'unsubscribed' }
+    });
+    return reply.send({ unsubscribed: true });
   });
 };

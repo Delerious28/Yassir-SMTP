@@ -1,11 +1,40 @@
+'use client';
+
+import { FormEvent, useState } from 'react';
+import { apiFetch, setToken } from '../../../lib/api';
+
 export default function LoginPage() {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    const form = new FormData(e.currentTarget);
+    const email = String(form.get('email'));
+    const password = String(form.get('password'));
+    try {
+      setLoading(true);
+      const data = await apiFetch<{ token: string }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+      setToken(data.token);
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-xl space-y-6 text-center">
       <div className="glass-panel border border-white/5 p-8 shadow-brand-strong">
         <p className="text-xs uppercase tracking-[0.25em] text-cyan-200">Admin access</p>
         <h1 className="mt-1 text-2xl font-semibold text-white">Secure sign-in</h1>
         <p className="text-sm text-slate-300">JWT-based admin auth keeps API keys and SMTP credentials protected.</p>
-        <form className="mt-6 space-y-3 text-left">
+        <form className="mt-6 space-y-3 text-left" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm text-slate-300">Email</label>
             <input
@@ -26,11 +55,13 @@ export default function LoginPage() {
               required
             />
           </div>
+          {error && <p className="text-sm text-rose-300">{error}</p>}
           <button
-            className="w-full rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:scale-105"
+            className="w-full rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:scale-105 disabled:opacity-50"
             type="submit"
+            disabled={loading}
           >
-            Sign in
+            {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>

@@ -1,4 +1,20 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { apiFetch } from '../../lib/api';
+
+type Stats = { sentToday: number; queued: number; replies: number; bounces: number };
+
 export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiFetch<Stats>('/api/stats')
+      .then(setStats)
+      .catch((err) => setError(err.message));
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="glass-panel p-6 flex flex-col gap-4 border-glow">
@@ -11,19 +27,15 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="hidden lg:flex items-center gap-3">
-            <div className="pill border border-cyan-400/30">Send queue stable</div>
+            <div className="pill border border-cyan-400/30">Send queue</div>
             <div className="pill border border-emerald-400/30">IMAP listening</div>
           </div>
         </div>
         <div className="card-grid">
-          {[
-            { label: 'Sent today', value: '126', accent: 'from-cyan-500/70 to-blue-500/60' },
-            { label: 'Queued', value: '42', accent: 'from-amber-400/60 to-orange-500/50' },
-            { label: 'Replies', value: '18', accent: 'from-emerald-400/60 to-cyan-400/50' },
-            { label: 'Bounces', value: '3', accent: 'from-rose-500/60 to-orange-500/50' },
-            { label: 'Stops by consent', value: '11', accent: 'from-fuchsia-500/60 to-violet-500/50' },
-            { label: 'Daily capacity left', value: '74%', accent: 'from-sky-400/70 to-cyan-400/60' },
-          ].map((stat) => (
+          {[{ label: 'Sent today', key: 'sentToday', accent: 'from-cyan-500/70 to-blue-500/60' },
+            { label: 'Queued', key: 'queued', accent: 'from-amber-400/60 to-orange-500/50' },
+            { label: 'Replies', key: 'replies', accent: 'from-emerald-400/60 to-cyan-400/50' },
+            { label: 'Bounces', key: 'bounces', accent: 'from-rose-500/60 to-orange-500/50' }].map((stat) => (
             <div
               key={stat.label}
               className="relative overflow-hidden rounded-2xl border border-white/5 bg-slate-900/80 px-4 py-5 shadow-glow"
@@ -32,7 +44,7 @@ export default function DashboardPage() {
               <div className="relative flex items-center justify-between">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-300/80">{stat.label}</p>
-                  <p className="text-3xl font-semibold text-white">{stat.value}</p>
+                  <p className="text-3xl font-semibold text-white">{stats ? stats[stat.key as keyof Stats] : '…'}</p>
                 </div>
                 <div className="h-10 w-10 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-cyan-200 animate-float">
                   ↺
@@ -41,6 +53,7 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+        {error && <p className="text-sm text-rose-300">{error}</p>}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -52,17 +65,8 @@ export default function DashboardPage() {
             </div>
             <span className="pill">Jitter-enabled</span>
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((phase) => (
-              <div key={phase} className="rounded-2xl border border-white/5 bg-white/5 px-4 py-4">
-                <div className="flex items-center justify-between text-xs text-slate-300">
-                  <span>Step {phase}</span>
-                  <span className="text-cyan-200">Wait {phase * 2}d</span>
-                </div>
-                <p className="mt-2 text-lg font-semibold text-white">Follow-up template {phase}</p>
-                <p className="text-sm text-slate-400">Consent-checked, stops on reply or bounce automatically.</p>
-              </div>
-            ))}
+          <div className="mt-4 text-sm text-slate-300">
+            Campaign schedules are generated from your configured steps and rate limits. Start a campaign from the campaigns page to queue real sends.
           </div>
         </div>
 
@@ -72,11 +76,9 @@ export default function DashboardPage() {
             <h2 className="text-xl font-semibold text-white">Queues & Workers</h2>
           </div>
           <div className="space-y-3">
-            {[
-              { label: 'Send queue', status: 'Draining', color: 'text-emerald-300', accent: 'border-emerald-400/40' },
+            {[{ label: 'Send queue', status: 'Active', color: 'text-emerald-300', accent: 'border-emerald-400/40' },
               { label: 'IMAP sync', status: 'Listening', color: 'text-cyan-200', accent: 'border-cyan-400/40' },
-              { label: 'Planner', status: 'Scheduling', color: 'text-blue-200', accent: 'border-blue-400/40' },
-            ].map((row) => (
+              { label: 'Planner', status: 'Scheduling', color: 'text-blue-200', accent: 'border-blue-400/40' }].map((row) => (
               <div
                 key={row.label}
                 className={`flex items-center justify-between rounded-xl border bg-slate-900/70 px-4 py-3 ${row.accent}`}

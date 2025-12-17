@@ -5,6 +5,7 @@ import { PLANNER_QUEUE, JOB_NAMES } from '@yassir/shared';
 import { Queue } from 'bullmq';
 
 const idParam = z.object({ id: z.string() });
+const attachLeadsSchema = z.object({ leadIds: z.array(z.string()).min(1) });
 
 export const campaignRoutes: FastifyPluginAsync = async (app) => {
   const plannerQueue = new Queue(PLANNER_QUEUE, { connection: { url: process.env.REDIS_URL || 'redis://localhost:6379' } });
@@ -19,6 +20,14 @@ export const campaignRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/', async () => {
     return app.prisma.campaign.findMany({ include: { accounts: true, steps: true } });
+  });
+
+  app.get('/:id', async (request) => {
+    const { id } = idParam.parse(request.params);
+    return app.prisma.campaign.findUnique({
+      where: { id },
+      include: { leads: { include: { lead: true } }, accounts: true, steps: true }
+    });
   });
 
   app.post('/', async (request, reply) => {
@@ -54,6 +63,23 @@ export const campaignRoutes: FastifyPluginAsync = async (app) => {
       create: { ...payload, campaignId: id }
     });
     return reply.code(201).send(step);
+  });
+
+  app.post('/:id/leads', async (request, reply) => {
+    const { id } = idParam.parse(request.params);
+    const { leadIds } = attachLeadsSchema.parse(request.body);
+    const campaign = await app.prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) return reply.code(404).send({ message: 'Campaign not found' });
+    const results = await Promise.all(
+      leadIds.map((leadId) =>
+        app.prisma.campaignLead.upsert({
+          where: { campaignId_leadId: { campaignId: id, leadId } },
+          update: {},
+          create: { campaignId: id, leadId }
+        })
+      )
+    );
+    return reply.code(201).send({ attached: results.length });
   });
 
   app.post('/:id/start', async (request, reply) => {

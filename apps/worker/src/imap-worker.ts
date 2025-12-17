@@ -1,6 +1,6 @@
 import { Worker, QueueScheduler } from 'bullmq';
 import { IMAP_QUEUE, JOB_NAMES, decryptSecret } from '@yassir/shared';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ConsentStatus } from '@prisma/client';
 import { ImapFlow } from 'imapflow';
 
 const connection = { url: process.env.REDIS_URL || 'redis://localhost:6379' };
@@ -27,6 +27,8 @@ export function startImapWorker() {
         const from = message.envelope?.from?.[0]?.address || '';
         const inReplyTo = message.envelope?.inReplyTo || undefined;
         const subject = message.envelope?.subject || '';
+        const normalizedFrom = from.toLowerCase();
+        const leadMatch = await prisma.lead.findUnique({ where: { email: normalizedFrom } });
         await prisma.message.upsert({
           where: { messageId: message.envelope?.messageId || `${accountId}-${message.uid}` },
           update: {},
@@ -38,7 +40,8 @@ export function startImapWorker() {
             messageId: message.envelope?.messageId || `${accountId}-${message.uid}`,
             inReplyTo,
             receivedAt: new Date(),
-            rawHeaders: message.headers
+            rawHeaders: message.headers,
+            inboundLeadId: leadMatch?.id
           }
         });
         if (inReplyTo) {
@@ -46,6 +49,16 @@ export function startImapWorker() {
           if (outbound?.outboundLeadId) {
             await prisma.lead.update({ where: { id: outbound.outboundLeadId }, data: { consentStatus: 'replied' } });
             await prisma.sendJob.updateMany({ where: { leadId: outbound.outboundLeadId, campaignId: outbound.campaignId, status: 'queued' }, data: { status: 'cancelled' } });
+          }
+        }
+        if (normalizedFrom.includes('mailer-daemon') || normalizedFrom.includes('postmaster')) {
+          if (leadMatch) {
+            await prisma.lead.update({ where: { id: leadMatch.id }, data: { consentStatus: ConsentStatus.bounced } });
+            await prisma.suppressionEntry.upsert({
+              where: { email: leadMatch.email },
+              update: { reason: ConsentStatus.bounced },
+              create: { email: leadMatch.email, reason: ConsentStatus.bounced }
+            });
           }
         }
       }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeEmail, computeJitterDelay, encryptSecret, decryptSecret } from '@yassir/shared';
+import { normalizeEmail, computeJitterDelay } from '../packages/shared/src/email-utils';
+import { encryptSecret, decryptSecret } from '../packages/shared/src/encryption';
 
 describe('email normalization', () => {
   it('lowercases and trims', () => {
